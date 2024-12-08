@@ -1,0 +1,15 @@
+Sublicense for Derived Work
+This project includes code originally licensed under the MIT License. 
+-In addition to the terms of the original license, the following conditions apply to the derived work:
+
+-This sublicensed version may include additional functionality, modifications, or extensions made by:
+--Balacenoiu Alin Bogdan Razvan, Burlacu Ana-Maria, Cojocari Alexandra Paula
+
+-Any distribution of this derived work must include this sublicense alongside the original MIT License. 
+ The original license terms must remain intact and unmodified.
+
+The sublicensed version may impose additional requirements only for new modifications introduced by:
+--Balacenoiu Alin Bogdan Razvan, Burlacu Ana-Maria, Cojocari Alexandra Paula. 
+These requirements do not override or limit the permissions granted by the original MIT License.
+
+For the original MIT License terms, please refer to the accompanying LICENSE file.
