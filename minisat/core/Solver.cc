@@ -503,67 +503,120 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |    Post-conditions:
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
-CRef Solver::propagate()
-{
-    CRef    confl     = CRef_Undef;
-    int     num_props = 0;
+///////////////////////////Modified function for University purposes////////////////////////////////
 
-    while (qhead < trail.size()){
-        Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
-        vec<Watcher>&  ws  = watches.lookup(p);
-        Watcher        *i, *j, *end;
+// Modified the structure of propagate() to be more maintainable.
+// Extracted multiple helper functions to reduce its complexity and improve readability.
+// Renamed variables for clarity:
+// - `p` -> `current_literal`
+// - `ws` -> `watch_list`
+// - `i` -> `current_watcher`
+// - `j` -> `next_watcher`
+// - `end` -> `watch_end`
+CRef Solver::propagate() {
+    CRef confl = CRef_Undef;
+    int num_props = 0;
+
+    while (qhead < trail.size()) {
+        Lit current_literal = trail[qhead++];
+        vec<Watcher>& watch_list = watches.lookup(current_literal);
         num_props++;
 
-        for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
-            // Try to avoid inspecting the clause:
-            Lit blocker = i->blocker;
-            if (value(blocker) == l_True){
-                *j++ = *i++; continue; }
-
-            // Make sure the false literal is data[1]:
-            CRef     cr        = i->cref;
-            Clause&  c         = ca[cr];
-            Lit      false_lit = ~p;
-            if (c[0] == false_lit)
-                c[0] = c[1], c[1] = false_lit;
-            assert(c[1] == false_lit);
-            i++;
-
-            // If 0th watch is true, then clause is already satisfied.
-            Lit     first = c[0];
-            Watcher w     = Watcher(cr, first);
-            if (first != blocker && value(first) == l_True){
-                *j++ = w; continue; }
-
-            // Look for new watch:
-            for (int k = 2; k < c.size(); k++)
-                if (value(c[k]) != l_False){
-                    c[1] = c[k]; c[k] = false_lit;
-                    watches[~c[1]].push(w);
-                    goto NextClause; }
-
-            // Did not find watch -- clause is unit under assignment:
-            *j++ = w;
-            if (value(first) == l_False){
-                confl = cr;
-                qhead = trail.size();
-                // Copy the remaining watches:
-                while (i < end)
-                    *j++ = *i++;
-            }else
-                uncheckedEnqueue(first, cr);
-
-        NextClause:;
-        }
-        ws.shrink(i - j);
+        processWatchList(current_literal, watch_list, confl);
+        if (confl != CRef_Undef) break;
     }
+
     propagations += num_props;
     simpDB_props -= num_props;
-
     return confl;
 }
 
+// Processes the watch list for a given literal.
+// Delegates the logic for handling individual watchers to processWatcher().
+// Improves readability by isolating watch list handling into a separate function.
+void Solver::processWatchList(Lit current_literal, vec<Watcher>& watch_list, CRef& confl) {
+    Watcher* current_watcher = watch_list.data();
+    Watcher* next_watcher = current_watcher;
+    Watcher* watch_end = current_watcher + watch_list.size();
 
+    while (current_watcher != watch_end) {
+        if (!processWatcher(*current_watcher, current_literal, next_watcher, confl)) {
+            copyRemainingWatches(current_watcher, watch_end, next_watcher);
+            break;
+        }
+        current_watcher++;
+    }
+    watch_list.shrink(current_watcher - next_watcher);
+}
+
+// Handles a single watcher from the watch list.
+// - Checks if the clause is already satisfied via the blocker.
+// - Ensures the false literal is correctly positioned.
+// - Finds a new watch or identifies the clause as unit/conflicting.
+// Encapsulates the logic for processing one watcher, making the code more modular.
+bool Solver::processWatcher(Watcher& watcher, Lit current_literal, Watcher*& next_watcher, CRef& confl) {
+    Lit blocker = watcher.blocker;
+    if (value(blocker) == l_True) {
+        *next_watcher++ = watcher;
+        return true;
+    }
+
+    CRef cr = watcher.cref;
+    Clause& clause = ca[cr];
+    Lit false_lit = ~current_literal;
+
+    if (clause[0] == false_lit) {
+        clause[0] = clause[1];
+        clause[1] = false_lit;
+    }
+    assert(clause[1] == false_lit);
+
+    if (value(clause[0]) == l_True) {
+        *next_watcher++ = watcher;
+        return true;
+    }
+
+    if (updateWatch(clause, false_lit, watches)) {
+        return true;
+    }
+
+    *next_watcher++ = watcher;
+    if (value(clause[0]) == l_False) {
+        confl = cr;
+        return false;
+    } else {
+        uncheckedEnqueue(clause[0], cr);
+        return true;
+    }
+}
+
+// Searches for a new watch in the clause.
+// - Iterates over literals starting from index 2 to find a non-false literal.
+// - Updates the watch list if a valid new watch is found.
+// Encapsulates the watch update logic, making it reusable and easy to test.
+bool Solver::updateWatch(Clause& clause, Lit false_lit, vec<Watcher>& watches) {
+    constexpr int WATCH_START_INDEX = 2;
+    for (int k = WATCH_START_INDEX; k < clause.size(); k++) {
+        if (value(clause[k]) != l_False) {
+            clause[1] = clause[k];
+            clause[k] = false_lit;
+            watches[~clause[1]].push(Watcher(clause.cref, clause[0]));
+            return true;
+        }
+    }
+    return false;
+}
+
+// Copies remaining watchers when a conflict is detected.
+// This ensures that the unprocessed watchers are preserved during conflict resolution.
+// Extracted as a reusable utility function for better modularity.
+void Solver::copyRemainingWatches(Watcher* current, Watcher* end, Watcher*& destination) {
+    while (current < end) {
+        *destination++ = *current++;
+    }
+}
+
+///////////////////////////Modified function for University purposes////////////////////////////////
 /*_________________________________________________________________________________________________
 |
 |  reduceDB : ()  ->  [void]

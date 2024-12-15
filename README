@@ -77,6 +77,13 @@ Run minisat with same heuristics as version 2.0:
 
 # Modified for University project purposes section
 
+Commit 1:
 Until now, there has been no modification of the original code. However 
 for university project purposes, we added a new file named "SUBLICENSE.txt". 
 This file serves as an additional resource for handling sublicenses within the project.
+
+Commit 2:
+
+The propagate function is restructured for better maintainability and readability, the logic of the function
+has been breaked dowin into smaller functions named "helper", each helper function is handling a specific responsability.
+This reduces complexity, makes the code modular and simplifies future updates.
