@@ -977,67 +977,107 @@ static Var mapVar(Var x, vec<Var>& map, Var& max)
     return map[x];
 }
 
+// Helper function to map variables consistently
+static Var mapVar(Var x, vec<Var>& map, Var& max) {
+    if (map.size() <= x || map[x] == -1) {
+        map.growTo(x + 1, -1);
+        map[x] = max++;
+    }
+    return map[x];
+}
 
-void Solver::toDimacs(FILE* f, Clause& c, vec<Var>& map, Var& max)
-{
+// Writes a single clause in DIMACS format
+void Solver::writeClauseToDimacs(FILE* f, Clause& c, vec<Var>& map, Var& max) {
     if (satisfied(c)) return;
 
-    for (int i = 0; i < c.size(); i++)
-        if (value(c[i]) != l_False)
-            fprintf(f, "%s%d ", sign(c[i]) ? "-" : "", mapVar(var(c[i]), map, max)+1);
+    for (int i = 0; i < c.size(); i++) {
+        if (value(c[i]) != l_False) {
+            fprintf(f, "%s%d ", sign(c[i]) ? "-" : "", mapVar(var(c[i]), map, max) + 1);
+        }
+    }
     fprintf(f, "0\n");
 }
 
+// Handles the case when the solver is in a contradictory state
+void Solver::writeContradictoryState(FILE* f) {
+    fprintf(f, "p cnf 1 2\n1 0\n-1 0\n");
+}
 
-void Solver::toDimacs(const char *file, const vec<Lit>& assumps)
-{
-    FILE* f = fopen(file, "wr");
-    if (f == NULL)
-        fprintf(stderr, "could not open file %s\n", file), exit(1);
-    toDimacs(f, assumps);
+// Main function to write the problem in DIMACS format
+void Solver::toDimacs(const char* file, const vec<Lit>& assumptions) {
+    FILE* f = fopen(file, "w");
+    if (f == NULL) {
+        fprintf(stderr, "Could not open file %s\n", file);
+        exit(1);
+    }
+    writeDimacs(f, assumptions);
     fclose(f);
 }
 
-
-void Solver::toDimacs(FILE* f, const vec<Lit>& assumps)
-{
-    // Handle case when solver is in contradictory state:
-    if (!ok){
-        fprintf(f, "p cnf 1 2\n1 0\n-1 0\n");
-        return; }
-
-    vec<Var> map; Var max = 0;
-
-    // Cannot use removeClauses here because it is not safe
-    // to deallocate them at this point. Could be improved.
-    int cnt = 0;
-    for (int i = 0; i < clauses.size(); i++)
-        if (!satisfied(ca[clauses[i]]))
-            cnt++;
-        
-    for (int i = 0; i < clauses.size(); i++)
-        if (!satisfied(ca[clauses[i]])){
-            Clause& c = ca[clauses[i]];
-            for (int j = 0; j < c.size(); j++)
-                if (value(c[j]) != l_False)
-                    mapVar(var(c[j]), map, max);
-        }
-
-    // Assumptions are added as unit clauses:
-    cnt += assumps.size();
-
-    fprintf(f, "p cnf %d %d\n", max, cnt);
-
-    for (int i = 0; i < assumps.size(); i++){
-        assert(value(assumps[i]) != l_False);
-        fprintf(f, "%s%d 0\n", sign(assumps[i]) ? "-" : "", mapVar(var(assumps[i]), map, max)+1);
+// Core function that performs the DIMACS export
+void Solver::writeDimacs(FILE* f, const vec<Lit>& assumptions) {
+    if (!ok) {
+        writeContradictoryState(f);
+        return;
     }
 
-    for (int i = 0; i < clauses.size(); i++)
-        toDimacs(f, ca[clauses[i]], map, max);
+    vec<Var> map;
+    Var max = 0;
+    int clauseCount = countRelevantClauses();
 
-    if (verbosity > 0)
-        printf("Wrote DIMACS with %d variables and %d clauses.\n", max, cnt);
+    // Map variables for all clauses
+    mapVariables(map, max);
+
+    // Include assumptions as additional unit clauses
+    clauseCount += assumptions.size();
+
+    // Write the DIMACS header
+    fprintf(f, "p cnf %d %d\n", max, clauseCount);
+
+    // Write assumptions as unit clauses
+    writeAssumptions(f, assumptions, map, max);
+
+    // Write clauses to the file
+    for (int i = 0; i < clauses.size(); i++) {
+        writeClauseToDimacs(f, ca[clauses[i]], map, max);
+    }
+
+    if (verbosity > 0) {
+        printf("Wrote DIMACS with %d variables and %d clauses.\n", max, clauseCount);
+    }
+}
+
+// Counts the number of relevant (unsatisfied) clauses
+int Solver::countRelevantClauses() const {
+    int count = 0;
+    for (int i = 0; i < clauses.size(); i++) {
+        if (!satisfied(ca[clauses[i]])) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Maps variables for all clauses to a continuous range
+void Solver::mapVariables(vec<Var>& map, Var& max) {
+    for (int i = 0; i < clauses.size(); i++) {
+        if (!satisfied(ca[clauses[i]])) {
+            Clause& c = ca[clauses[i]];
+            for (int j = 0; j < c.size(); j++) {
+                if (value(c[j]) != l_False) {
+                    mapVar(var(c[j]), map, max);
+                }
+            }
+        }
+    }
+}
+
+// Writes assumptions as unit clauses
+void Solver::writeAssumptions(FILE* f, const vec<Lit>& assumptions, vec<Var>& map, Var& max) {
+    for (int i = 0; i < assumptions.size(); i++) {
+        assert(value(assumptions[i]) != l_False);
+        fprintf(f, "%s%d 0\n", sign(assumptions[i]) ? "-" : "", mapVar(var(assumptions[i]), map, max) + 1);
+    }
 }
 
 
