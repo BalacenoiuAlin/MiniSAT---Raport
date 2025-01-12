@@ -631,22 +631,37 @@ struct reduceDB_lt {
     bool operator () (CRef x, CRef y) { 
         return ca[x].size() > 2 && (ca[y].size() == 2 || ca[x].activity() < ca[y].activity()); } 
 };
+
+void Solver::logReduceDBStats(int removed_clauses, double extra_lim) {
+    printf("ReduceDB: Removed %d clauses. ExtraLim: %.4f\n", removed_clauses, extra_lim);
+}
+
+double calculateDynamicExtraLim(int conflicts, double cla_inc, int num_learnts) {
+    double scaling_factor = 1.0 + (conflicts % 1000) * 0.001;
+    return (cla_inc / num_learnts) * scaling_factor;
+}
+
 void Solver::reduceDB()
 {
     int     i, j;
-    double  extra_lim = cla_inc / learnts.size();    // Remove any clause below this activity
+    double extra_lim = calculateDynamicExtraLim(conflicts, cla_inc, learnts.size());    // Remove any clause below this activity
 
-    sort(learnts, reduceDB_lt(ca));
+    //sortare paralela
+    std::sort(std::execution::par, learnts.begin(), learnts.end(), reduceDB_lt(ca));
+
     // Don't delete binary or locked clauses. From the rest, delete clauses from the first half
     // and clauses with activity smaller than 'extra_lim':
+    int removed_clauses=0;
     for (i = j = 0; i < learnts.size(); i++){
         Clause& c = ca[learnts[i]];
         if (c.size() > 2 && !locked(c) && (i < learnts.size() / 2 || c.activity() < extra_lim))
             removeClause(learnts[i]);
+            removed_clauses++;
         else
             learnts[j++] = learnts[i];
     }
     learnts.shrink(i - j);
+    logReduceDBStats(removed_clauses, extra_lim);
     checkGarbage();
 }
 
