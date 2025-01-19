@@ -88,6 +88,19 @@ The propagate function is restructured for better maintainability and readabilit
 has been breaked dowin into smaller functions named "helper", each helper function is handling a specific responsability.
 This reduces complexity, makes the code modular and simplifies future updates.
 
-Commit 2:
+Commit 3:
 
 Modified toDimacs() for better maintainability. The initial function is now broken down into smaller functions that work together to achieve the same functionality. Each helper function has a specific responsibility, ensuring the code is more modular, readable, and easier to update in the future.
+
+Commit 4:
+
+Automation for extra_lim calculation. The scope of the extra_lim is to remove clauses based on the their activity.
+The purpose is to calculate the extra lim dynamically based on a scaling factor that grows slightly with every 1000 conflicts. Because of the dynamic calculation, the solver will be able to to balance between reduction and retaining potentially useful clauses.
+
+Commit 5:
+
+Refactor countRelevantClauses() and mapVariables() for improved readability
+
+- Renamed local variables to be more descriptive (e.g., num_unsatisfied_clauses, total_clauses).
+- Replaced direct clause lookups with const Clause& to clarify read-only intent.
+- Reformatted code blocks to make logical steps easier to follow.

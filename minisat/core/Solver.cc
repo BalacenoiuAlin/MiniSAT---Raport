@@ -1062,23 +1062,31 @@ void Solver::writeDimacs(FILE* f, const vec<Lit>& assumptions) {
     }
 }
 
-// Counts the number of relevant (unsatisfied) clauses
+// Counts the number of clauses that are not satisfied under the current assignment.
 int Solver::countRelevantClauses() const {
-    int count = 0;
-    for (int i = 0; i < clauses.size(); i++) {
-        if (!satisfied(ca[clauses[i]])) {
-            count++;
+    int num_unsatisfied_clauses = 0;
+
+    // We iterate over each clause handle stored in 'clauses'
+    const int total_clauses = clauses.size();
+    for (int i = 0; i < total_clauses; i++) {
+        const Clause& c = ca[clauses[i]];
+        if (!satisfied(c)) {
+            num_unsatisfied_clauses++;
         }
     }
-    return count;
+    return num_unsatisfied_clauses;
 }
 
-// Maps variables for all clauses to a continuous range
+// Maps the variables of any unsatisfied clause to a continuous range, updating the provided
 void Solver::mapVariables(vec<Var>& map, Var& max) {
-    for (int i = 0; i < clauses.size(); i++) {
-        if (!satisfied(ca[clauses[i]])) {
-            Clause& c = ca[clauses[i]];
-            for (int j = 0; j < c.size(); j++) {
+    // Only map variables in clauses that are not satisfied, since satisfied clauses don't matter.
+    const int total_clauses = clauses.size();
+    for (int i = 0; i < total_clauses; i++) {
+        const Clause& c = ca[clauses[i]];
+        if (!satisfied(c)) {
+            // For each literal in the clause, if it is not assigned 'false', map its variable.
+            const int clause_size = c.size();
+            for (int j = 0; j < clause_size; j++) {
                 if (value(c[j]) != l_False) {
                     mapVar(var(c[j]), map, max);
                 }
